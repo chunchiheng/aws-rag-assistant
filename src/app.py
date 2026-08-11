@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.rag import ask_question
+from rag import ask_question
 
 
 st.set_page_config(

@@ -7,7 +7,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 from openai import OpenAI
 
-from src.reranker import rerank_documents
+from reranker import rerank_documents
 
 
 load_dotenv()
