@@ -102,7 +102,7 @@ The current documents cover:
 * Amazon S3
 * Amazon VPC
 
-Each document is assigned service metadata based on its filename.
+The system can be extended to support additional AWS services by obtaining their official documentation from the AWS Documentation website and adding the documents to the data/documents/ directory.
 
 ---
 
@@ -534,15 +534,10 @@ Potential improvements include:
 
 * Conversational chat history
 * Streaming LLM responses
-* Improved source citation and metadata handling
-* Source document preview
 * AWS service filtering
 * Better retrieval evaluation
-* Improved reranking strategies
 * Authentication and user management
 * Deployment using AWS services
-* Production deployment with Docker
-* Responsive UI improvements
 
 ---
 
