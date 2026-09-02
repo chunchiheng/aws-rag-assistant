@@ -1,0 +1,89 @@
+.app {
+  min-height: 100vh;
+  background-color: #f5f7fa;
+  padding: 40px 20px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  padding: 40px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin-bottom: 10px;
+}
+
+.description {
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.question-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+textarea {
+  width: 100%;
+  padding: 15px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #555;
+}
+
+button {
+  width: 120px;
+  padding: 12px 20px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  background-color: #222;
+  color: white;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #444;
+}
+
+button:disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+.result {
+  margin-top: 40px;
+}
+
+.result h2 {
+  margin-top: 25px;
+  margin-bottom: 10px;
+}
+
+.result p {
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.result li {
+  margin-bottom: 8px;
+}
+
+.error {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #ffe5e5;
+  border-radius: 8px;
+}
