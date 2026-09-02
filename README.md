@@ -1,271 +1,189 @@
 # AWS Documentation RAG Assistant
 
-An end-to-end Retrieval-Augmented Generation (RAG) application that answers questions using official AWS documentation for **Amazon EC2, Amazon S3, and Amazon VPC**.
+An AI-powered **Retrieval-Augmented Generation (RAG)** application that allows users to ask questions about AWS documentation. The system retrieves relevant information from AWS documentation, reranks the retrieved results using a Cross-Encoder, and uses OpenAI GPT-4.1-mini to generate grounded answers with source references.
 
-The system combines **semantic retrieval, cross-encoder reranking, and an OpenAI LLM** to generate grounded answers with document and page-level source references.
-
----
-
-## Demo
-
-The application provides a simple Streamlit interface where users can ask natural-language questions about AWS services.
-
-Example:
-
-> **What is Amazon VPC and why is it used with EC2?**
-
-The system retrieves relevant AWS documentation, reranks the retrieved chunks, and generates an answer based on the most relevant sources.
-
-Each answer also includes the source document and page number.
+The application uses **React (JavaScript)** as the frontend and **FastAPI (Python)** as the backend.
 
 ---
 
-## Project Architecture
+## Features
+
+* Ask questions about AWS services and documentation
+* Retrieval-Augmented Generation (RAG) pipeline
+* Semantic document retrieval using vector embeddings
+* ChromaDB vector database
+* Cross-Encoder reranking for improved retrieval relevance
+* OpenAI GPT-4.1-mini for answer generation
+* Source references showing the AWS documentation and page number
+* React-based frontend
+* FastAPI REST API backend
+* CORS support for frontend-backend communication
+
+---
+
+## Architecture
 
 ```text
-                    AWS Documentation
-                  /        |        \
-                 /         |         \
-              EC2.pdf    S3.pdf     VPC.pdf
-                 \         |         /
-                  \        |        /
-                   Document Loading
-                          |
-                          v
-                   Text Chunking
-                          |
-                          v
-              Sentence Transformer
-                    Embeddings
-                          |
-                          v
-                      ChromaDB
-                          |
-                          v
-                 Semantic Retrieval
-                       Top 10
-                          |
-                          v
-                Cross-Encoder Reranker
-                       Top 3
-                          |
-                          v
-                    OpenAI LLM
-                          |
-                          v
-                 Answer + Sources
-                          |
-                          v
-                    Streamlit UI
+                         User
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │   React Frontend  │
+                 │   JavaScript      │
+                 │   localhost:3000  │
+                 └─────────┬─────────┘
+                           │
+                     HTTP POST
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │  FastAPI Backend  │
+                 │   localhost:8000  │
+                 └─────────┬─────────┘
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │      RAG.py       │
+                 └─────────┬─────────┘
+                           │
+                    Similarity Search
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │     ChromaDB      │
+                 │  Vector Database  │
+                 └─────────┬─────────┘
+                           │
+                      Top 10 Results
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │  Cross-Encoder    │
+                 │     Reranker      │
+                 └─────────┬─────────┘
+                           │
+                        Top 3
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │   OpenAI GPT      │
+                 │    GPT-4.1-mini   │
+                 └─────────┬─────────┘
+                           │
+                     Answer + Sources
+                           │
+                           ▼
+                 ┌───────────────────┐
+                 │   React Frontend  │
+                 └───────────────────┘
 ```
 
 ---
 
 ## RAG Pipeline
 
+The application follows a multi-stage RAG pipeline.
+
 ### 1. Document Ingestion
 
-The system loads AWS PDF documentation using LangChain's `PyPDFLoader`.
-
-The current knowledge base contains:
-
-| Document              |     Pages |
-| --------------------- | --------: |
-| Amazon EC2 User Guide |     3,942 |
-| Amazon S3 User Guide  |     3,659 |
-| Amazon VPC User Guide |       712 |
-| **Total**             | **8,313** |
-
-The documents are split into smaller chunks using `RecursiveCharacterTextSplitter`.
-
-Current configuration:
+AWS documentation PDFs are loaded using `PyPDFLoader`.
 
 ```text
-Chunk size:    1000 characters
-Chunk overlap: 200 characters
+AWS Documentation PDFs
+        ↓
+PyPDFLoader
+        ↓
+Document Pages
 ```
 
-The three documents currently produce approximately:
+The current documents cover:
 
-```text
-18,341 document chunks
-```
+* Amazon EC2
+* Amazon S3
+* Amazon VPC
+
+Each document is assigned service metadata based on its filename.
 
 ---
 
-### 2. Text Embeddings
+### 2. Text Chunking
 
-Each document chunk is converted into a numerical vector using:
-
-**`sentence-transformers/all-MiniLM-L6-v2`**
-
-The model produces a **384-dimensional embedding vector**.
-
-For example:
+The extracted documents are divided into smaller chunks using `RecursiveCharacterTextSplitter`.
 
 ```text
-Document Chunk
+Chunk Size: 1000 characters
+Chunk Overlap: 200 characters
+```
+
+The overlap helps preserve contextual information between adjacent chunks.
+
+---
+
+### 3. Embeddings
+
+Each chunk is converted into a vector representation using:
+
+```text
+sentence-transformers/all-MiniLM-L6-v2
+```
+
+These embeddings are stored in ChromaDB for semantic similarity search.
+
+---
+
+### 4. Vector Retrieval
+
+When a user submits a question, the system performs semantic similarity search against ChromaDB.
+
+```text
+User Question
       ↓
-Sentence Transformer
+Embedding
       ↓
-[0.0057, 0.0473, 0.00006, ..., 0.1067]
+ChromaDB
       ↓
-384-dimensional vector
+Top 10 Relevant Documents
 ```
-
-These embeddings allow the system to perform semantic similarity search.
 
 ---
 
-### 3. Vector Database
+### 5. Document Reranking
 
-The generated embeddings are stored in **ChromaDB**.
-
-Each chunk is assigned a deterministic ID containing the AWS service, page number, and chunk index.
-
-Example:
+The retrieved Top 10 documents are reranked using:
 
 ```text
-ec2_page_22_chunk_42
+cross-encoder/ms-marco-MiniLM-L-6-v2
 ```
 
-This makes the stored documents easier to identify and helps avoid accidental duplicate insertion during ingestion.
+The Cross-Encoder evaluates the relevance between the user's question and each retrieved document.
+
+```text
+Top 10 Retrieved Documents
+          ↓
+     Cross-Encoder
+          ↓
+Top 3 Relevant Documents
+```
 
 ---
 
-### 4. Semantic Retrieval
+### 6. Answer Generation
 
-When a user submits a question, the query is converted into an embedding and compared against the vectors stored in ChromaDB.
+The Top 3 documents are combined into a context and provided to OpenAI GPT-4.1-mini.
 
-The system retrieves the **Top 10 candidate chunks**.
-
-```text
-User Query
-    ↓
-Query Embedding
-    ↓
-ChromaDB Similarity Search
-    ↓
-Top 10 Candidate Chunks
-```
-
-Retrieving more candidates at this stage increases the chance that the relevant information is included before reranking.
-
----
-
-### 5. Cross-Encoder Reranking
-
-The initial Top 10 results are passed through a cross-encoder reranker.
-
-Instead of only comparing vector similarity, the reranker evaluates the relationship between the **user query and each retrieved document**.
+The model is instructed to answer the question using only the retrieved documentation context.
 
 ```text
-User Query + Retrieved Document
-              ↓
-       Cross-Encoder
-          Reranker
-              ↓
-        Relevance Score
-```
-
-The system then selects the **Top 3** most relevant chunks.
-
-```text
-Top 10 Retrieved
+Top 3 Documents
        ↓
-   Reranking
+   Context
        ↓
-Top 3 Relevant
+GPT-4.1-mini
+       ↓
+Generated Answer
 ```
 
-This two-stage retrieval strategy improves retrieval quality while keeping the amount of context sent to the LLM small.
-
----
-
-### 6. LLM Generation
-
-The Top 3 reranked chunks are passed to an **OpenAI LLM** as context.
-
-The LLM generates the final answer based on the retrieved AWS documentation.
-
-The system also returns the source document and page number.
-
-Example:
-
-```text
-Answer:
-
-An EC2 instance is a virtual server in the AWS Cloud.
-The instance type determines the hardware available
-to the instance...
-
-Sources:
-
-- ec2_user_guide.pdf — Page 23
-```
-
----
-
-## Retrieval Quality Example
-
-The system was tested with:
-
-```text
-Query:
-What is Amazon VPC and why is it used with EC2?
-```
-
-The initial vector retrieval returned 10 documents.
-
-After reranking, the Top 3 results were all relevant sections from the Amazon VPC User Guide.
-
-### Top 3 Results
-
-| Rank | Source                  | Content                         |
-| ---- | ----------------------- | ------------------------------- |
-| 1    | VPC User Guide, Page 12 | What is Amazon VPC?             |
-| 2    | VPC User Guide, Page 18 | VPCs and subnets                |
-| 3    | VPC User Guide, Page 14 | Getting started with Amazon VPC |
-
-This demonstrates that the reranker can filter the initial retrieval results and prioritize documents that are more directly related to the user's question.
-
----
-
-## Streamlit UI
-
-The project includes a Streamlit interface for interacting with the RAG system.
-
-Users can enter questions such as:
-
-```text
-What is Amazon EC2?
-
-What is Amazon S3?
-
-What is Amazon VPC?
-
-What is the difference between EC2 and S3?
-
-Why is VPC used with EC2?
-```
-
-The application returns:
-
-1. Generated answer
-2. Source document
-3. Source page number
-
-Example:
-
-```text
-Answer
-
-An EC2 instance is a virtual server in the AWS Cloud...
-
-Sources
-
-- ec2_user_guide.pdf — Page 23
-```
+If the answer cannot be found in the provided context, the system is instructed to indicate that there is not enough information.
 
 ---
 
@@ -274,219 +192,339 @@ Sources
 ```text
 aws-rag-assistant/
 │
+├── backend/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── rag.py
+│   ├── reranker.py
+│   └── ingest.py
+│
+├── frontend/
+│   ├── package.json
+│   ├── public/
+│   └── src/
+│       ├── App.js
+│       ├── App.css
+│       └── ...
+│
 ├── data/
 │   └── documents/
 │       ├── ec2_user_guide.pdf
 │       ├── s3_user_guide.pdf
 │       └── vpc_user_guide.pdf
 │
-├── src/
-│   ├── __init__.py
-│   ├── app.py
-│   ├── ingest.py
-│   ├── rag.py
-│   ├── reranker.py
-│   └── test_reranker.py
-│
+├── chroma_db/
 ├── .env
-├── .gitignore
-├── README.md
-└── requirements.txt
+├── requirements.txt
+└── README.md
 ```
 
-> `venv/`, `chroma_db/`, `.env`, and Python cache files are excluded from version control.
+### Backend
+
+| File          | Description                                                                     |
+| ------------- | ------------------------------------------------------------------------------- |
+| `main.py`     | FastAPI application and REST API endpoints                                      |
+| `rag.py`      | RAG pipeline, retrieval, context construction, and OpenAI generation            |
+| `reranker.py` | Cross-Encoder document reranking                                                |
+| `ingest.py`   | Loads PDFs, chunks documents, generates embeddings, and stores them in ChromaDB |
+
+### Frontend
+
+| File           | Description                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| `App.js`       | React application logic, user input, API requests, and result rendering |
+| `App.css`      | Frontend styling                                                        |
+| `package.json` | React project dependencies and scripts                                  |
+
+### Data
+
+The `data/documents/` directory contains the AWS documentation PDFs used by the RAG system.
+
+### ChromaDB
+
+The `chroma_db/` directory stores the generated vector embeddings and document metadata.
 
 ---
 
-## Technologies
+## Technologies Used
 
-### AI / RAG
+### Frontend
 
-* OpenAI API
+* React
+* JavaScript
+* HTML / JSX
+* CSS
+* Fetch API
+
+### Backend
+
+* Python
+* FastAPI
+* Uvicorn
+* Pydantic
+
+### RAG / AI
+
 * LangChain
-* Sentence Transformers
-* Cross-Encoder Reranking
-
-### Vector Database
-
 * ChromaDB
+* Hugging Face Embeddings
+* Sentence Transformers
+* Cross-Encoder
+* OpenAI API
+* GPT-4.1-mini
 
 ### Document Processing
 
-* PyPDF
-* Recursive Character Text Splitting
-
-### Application
-
-* Streamlit
-
-### Programming / Development
-
-* Python
-* Git
-* GitHub
+* PyPDFLoader
+* RecursiveCharacterTextSplitter
 
 ---
 
-## Setup
+## Installation
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/chunchiheng/aws-rag-assistant.git
+git clone <your-repository-url>
 cd aws-rag-assistant
 ```
 
-### 2. Create a virtual environment
+---
 
-For Windows PowerShell:
+### 2. Create and activate a Python virtual environment
 
-```powershell
+Windows:
+
+```bash
 python -m venv venv
+venv\Scripts\activate
 ```
 
-Activate the environment:
+---
 
-```powershell
-.\venv\Scripts\Activate.ps1
-```
+### 3. Install Python dependencies
 
-### 3. Install dependencies
-
-```powershell
+```bash
 pip install -r requirements.txt
 ```
 
-### 4. Configure OpenAI API Key
+---
+
+### 4. Configure the OpenAI API key
 
 Create a `.env` file in the project root:
 
-```text
-OPENAI_API_KEY=your_api_key_here
+```env
+OPENAI_API_KEY=your_openai_api_key
 ```
 
 Do not commit the `.env` file to GitHub.
 
-### 5. Add AWS documentation
-
-Place AWS documentation PDFs inside:
+Add it to `.gitignore`:
 
 ```text
-data/documents/
+.env
+venv/
+__pycache__/
+node_modules/
 ```
 
-For example:
+---
+
+## Document Ingestion
+
+If the ChromaDB database has not been created yet, run the ingestion script from the project root:
+
+```bash
+python -m backend.ingest
+```
+
+The ingestion process will:
+
+1. Find all AWS PDF documents
+2. Load the PDF pages
+3. Add AWS service metadata
+4. Split documents into chunks
+5. Generate embeddings
+6. Generate deterministic chunk IDs
+7. Store the chunks and embeddings in ChromaDB
+
+After ingestion, the generated database will be stored in:
 
 ```text
-data/documents/
-├── ec2_user_guide.pdf
-├── s3_user_guide.pdf
-└── vpc_user_guide.pdf
+chroma_db/
 ```
 
-### 6. Build the vector database
+---
 
-Run:
-
-```powershell
-python src/ingest.py
-```
-
-This will:
-
-```text
-Load PDFs
-   ↓
-Split documents
-   ↓
-Generate embeddings
-   ↓
-Store vectors in ChromaDB
-```
-
-### 7. Start the application
+## Running the Backend
 
 From the project root:
 
-```powershell
-streamlit run src/app.py
+```bash
+uvicorn backend.main:app --reload
 ```
 
-The Streamlit application will then open in your browser.
+The FastAPI backend will run at:
+
+```text
+http://127.0.0.1:8000
+```
+
+FastAPI automatically provides interactive API documentation at:
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+The main API endpoint is:
+
+```text
+POST /api/ask
+```
+
+Example request:
+
+```json
+{
+  "query": "What is Amazon EC2?"
+}
+```
+
+Example response:
+
+```json
+{
+  "answer": "Amazon EC2 provides on-demand, scalable computing capacity...",
+  "sources": [
+    "ec2_user_guide.pdf — Page 23",
+    "ec2_user_guide.pdf — Page 23",
+    "ec2_user_guide.pdf — Page 3650"
+  ]
+}
+```
 
 ---
 
-## Adding More AWS Services
+## Running the Frontend
 
-Additional AWS documentation can be added by placing the corresponding PDF files inside:
+Open a second terminal and navigate to the frontend directory:
 
-```text
-data/documents/
+```bash
+cd frontend
 ```
 
-For example:
+Install the JavaScript dependencies:
 
-```text
-data/documents/
-├── ec2_user_guide.pdf
-├── s3_user_guide.pdf
-├── vpc_user_guide.pdf
-├── lambda_user_guide.pdf
-└── iam_user_guide.pdf
+```bash
+npm install
 ```
 
-Running the ingestion pipeline will process the documents and add their chunks to the vector database.
+Start the React development server:
 
-The deterministic document IDs are generated using the service name, page number, and chunk index to help identify individual chunks.
+```bash
+npm start
+```
+
+The frontend will run at:
+
+```text
+http://localhost:3000
+```
+
+The React frontend communicates with the FastAPI backend through:
+
+```text
+POST http://127.0.0.1:8000/api/ask
+```
 
 ---
 
-## Why Top 10 → Rerank → Top 3?
+## Application Workflow
 
-A simple approach would be to retrieve the Top 3 results directly from the vector database.
-
-However, semantic similarity does not always guarantee that the retrieved chunk is the most relevant answer.
-
-For example, an EC2 query may retrieve:
-
-* A table of contents
-* An introductory section
-* An EC2 feature description
-* An unrelated EC2 configuration section
-
-Therefore, this project uses a two-stage retrieval strategy:
+When a user asks a question:
 
 ```text
-Fast Retrieval
-     ↓
-Top 10
-     ↓
-More Accurate Reranking
-     ↓
-Top 3
-     ↓
-LLM Context
+1. User enters a question in React
+             ↓
+2. React sends POST request to FastAPI
+             ↓
+3. FastAPI receives the question
+             ↓
+4. RAG performs semantic similarity search
+             ↓
+5. ChromaDB returns Top 10 documents
+             ↓
+6. Cross-Encoder reranks the documents
+             ↓
+7. Top 3 documents are selected
+             ↓
+8. Retrieved context is sent to GPT-4.1-mini
+             ↓
+9. GPT generates an answer
+             ↓
+10. FastAPI returns answer + sources
+             ↓
+11. React displays the result
 ```
-
-This balances **retrieval coverage, relevance, and LLM context size**.
 
 ---
 
-## Limitations
+## API Endpoint
 
-The current implementation is intentionally designed as a simple RAG demonstration.
+### `POST /api/ask`
 
-Current limitations include:
+Submit a question to the AWS documentation assistant.
 
-* No automated retrieval evaluation metrics
-* No conversation memory
-* No incremental document update detection
-* Local ChromaDB storage
-* No cloud deployment
-* Limited metadata filtering
-* Fixed Top 10 → Top 3 retrieval strategy
+#### Request
 
-These areas can be improved in future iterations.
+```json
+{
+  "query": "What is Amazon EC2?"
+}
+```
+
+#### Response
+
+```json
+{
+  "answer": "Amazon EC2 provides on-demand, scalable computing capacity...",
+  "sources": [
+    "ec2_user_guide.pdf — Page 23",
+    "ec2_user_guide.pdf — Page 23",
+    "ec2_user_guide.pdf — Page 3650"
+  ]
+}
+```
+
+---
+
+## Development
+
+Run the backend:
+
+```bash
+uvicorn backend.main:app --reload
+```
+
+Run the frontend in a separate terminal:
+
+```bash
+cd frontend
+npm start
+```
+
+The two development servers communicate through HTTP requests.
+
+```text
+React
+localhost:3000
+      │
+      │ POST /api/ask
+      ↓
+FastAPI
+127.0.0.1:8000
+```
 
 ---
 
@@ -494,41 +532,20 @@ These areas can be improved in future iterations.
 
 Potential improvements include:
 
-* Metadata filtering by AWS service
-* Incremental document ingestion
-* Automatic document update detection
-* Hybrid keyword + vector retrieval
-* Retrieval evaluation using Recall@K / MRR
-* Automated RAG evaluation
-* Conversation history
-* Additional AWS services such as Lambda, IAM, RDS, and DynamoDB
-* Cloud deployment using AWS services
-* Authentication and multi-user support
+* Conversational chat history
+* Streaming LLM responses
+* Improved source citation and metadata handling
+* Source document preview
+* AWS service filtering
+* Better retrieval evaluation
+* Improved reranking strategies
+* Authentication and user management
+* Deployment using AWS services
+* Production deployment with Docker
+* Responsive UI improvements
 
 ---
 
-## Learning Outcomes
+## License
 
-This project demonstrates practical experience with:
-
-* Retrieval-Augmented Generation
-* Document ingestion and preprocessing
-* Text chunking strategies
-* Text embeddings
-* Vector databases
-* Semantic similarity search
-* Cross-encoder reranking
-* LLM integration
-* Prompt-based context grounding
-* Source attribution
-* Streamlit application development
-* Python project structure
-* Git and GitHub workflow
-
----
-
-## Disclaimer
-
-This project is an educational demonstration of a Retrieval-Augmented Generation system using AWS documentation.
-
-AWS documentation is provided by Amazon Web Services and is not part of this project.
+This project was developed as a personal academic/project application for demonstrating RAG, full-stack development, and AI application development.
